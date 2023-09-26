@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios'
 import jwt_decode from "jwt-decode";
+import Swal from 'sweetalert2';
 
 const { VITE_APP_HOST } = import.meta.env;
-
 const todoData = []
 
 /* 
@@ -31,6 +31,12 @@ const todoData = [{
 }
 ] */
 
+// 取得 Cookie
+const cookieValue = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("token="))
+    ?.split("=")[1];
+
 const TodoList = () => {
     const [todos, setTodos] = useState(todoData);
     const [newTodo, setNewTodo] = useState('');
@@ -39,14 +45,11 @@ const TodoList = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [todoStatus, setTodoStatus] = useState('all');
     const navigate = useNavigate();
+    const [editingId, setEditingId] = useState(null);
+    const [editedContent, setEditedContent] = useState('');
+    const [editingState, setEditingState] = useState(todos.map(todo => ({ id: todo.id, editing: false })));
 
     useEffect(() => {
-        // 取得 Cookie
-        const cookieValue = document.cookie
-            .split("; ")
-            .find((row) => row.startsWith("token="))
-            ?.split("=")[1];
-
         const decodedToken = jwt_decode(cookieValue);
         setNickname(decodedToken.nickname);
 
@@ -64,16 +67,56 @@ const TodoList = () => {
             }, 3000);
         })
 
+        getTodos();
+
     }, [navigate, nickname])
 
 
+    const handleEdit = (todo) => {
+        setEditedContent(todo.content);
+    };
+
+    const editTodo = async (id) => {
+        try {
+            const res = await axios.put(
+                `${VITE_APP_HOST}/todos/${id}`,
+                {
+                    content: editContent,
+                },
+                {
+                    headers: {
+                        Authorization: cookieValue,
+                    },
+                }
+            );
+
+            getTodos();
+        } catch (error) {
+            Swal.fire('編輯失敗', error.response.data.message);
+        }
+
+        setEditedContent('');
+    };
+
+
     const toggleCheck = (id) => {
+
+        axios.defaults.headers.common['Authorization'] = cookieValue;
+
+        // 完成狀態修改
+        axios.patch(`${VITE_APP_HOST}/todos/${id}/toggle`).then(() => {
+            console.log("完成狀態修改成功")
+        }).catch(err => {
+            console.log('完成狀態修改失敗', err);
+        })
+
         const newTodos = todos.map((todo) => {
+
             if (todo.id === id) {
                 return {
                     ...todo,
                     isCompleted: !todo.isCompleted,
-                    checkedStatus: !todo.checkedStatus,
+                    status: !todo.status,
                 };
             }
             return todo;
@@ -110,7 +153,49 @@ const TodoList = () => {
 
     }
 
-    const addTodo = (text) => {
+    const getTodos = async () => {
+        try {
+            const cookieValue = document.cookie.split("; ")
+                .find((row) => row.startsWith("token="))
+                ?.split("=")[1];
+            const res = await axios.get(`${VITE_APP_HOST}/todos`, {
+                headers: {
+                    Authorization: cookieValue,
+                },
+            });
+            console.log(res.data.data);
+            setTodos(res.data.data);
+
+        } catch (error) {
+            Swal.fire('失敗', error.response.data.message);
+        }
+    };
+
+    const addTodo = async () => {
+        if (!newTodo) {
+            return;
+        }
+        try {
+            const res = await axios.post(
+                `${VITE_APP_HOST}/todos`,
+                {
+                    content: newTodo,
+                },
+                {
+                    headers: {
+                        Authorization: cookieValue,
+                    },
+                }
+            );
+            setNewTodo('');
+            getTodos();
+            /* setTabStatus('all'); */
+        } catch (error) {
+            Swal.fire('新增失敗', error.response.data.message);
+        }
+    };
+
+    /* const addTodo = (text) => {
         const newTodos = [
             ...todos,
             {
@@ -120,18 +205,30 @@ const TodoList = () => {
             },
         ];
         setTodos(newTodos);
-    }
+    } */
 
-    const removeTodo = (id) => {
-        const newTodos = [...todos];
-        const filteredTodos = newTodos.filter((todo) =>
-            todo.id !== id ? todo : null
-        );
+    const removeTodo = async (id) => {
+        console.log(id);
+        try {
+            const res = await axios.delete(
+                `${VITE_APP_HOST}/todos/${id}`,
+                {
+                    headers: {
+                        Authorization: cookieValue,
+                    },
+                }
+            );
+            getTodos();
+            /* setTabStatus('all'); */
+        } catch (error) {
+            Swal.fire('刪除失敗', error.response.data.message);
+        }
+
         if (checkedItems.includes(id)) {
             setCheckedItems(checkedItems.filter((item) => item !== id));
         }
 
-        setTodos(filteredTodos);
+        /* setTodos(filteredTodos); */
     }
 
     const signOut = async () => {
@@ -178,10 +275,10 @@ const TodoList = () => {
                     <div className="conatiner todoListPage vhContainer">
                         <div className="todoList_Content">
                             <div className="inputBox">
-                                <input type="text" placeholder="請輸入待辦事項" value={newTodo} onChange={(e) => setNewTodo(e.target.value)} />
+                                <input type="text" placeholder="請輸入待辦事項" value={newTodo} onChange={(e) => setNewTodo(e.target.value.trim())} />
                                 <a href="#" className='text-white' onClick={(e) => {
                                     e.preventDefault();
-                                    addTodo(newTodo);
+                                    addTodo();
                                 }}>
                                     <i className="fa fa-plus"></i>
                                 </a>
@@ -207,13 +304,30 @@ const TodoList = () => {
                                                 ? true : todoStatus === "completed"
                                                     ? todo.isCompleted
                                                     : !todo.isCompleted)
-
                                             .map((todo) => (
                                                 <li key={todo.id} className="d-flex align-items-center">
                                                     <label className="todoList_label">
-                                                        <input className="todoList_input" type="checkbox" value="true" onChange={() => toggleCheck(todo.id)} checked={todo.checkedStatus} />
-                                                        <span style={{ textDecoration: todo.isCompleted ? "line-through" : "" }}>{todo.text}</span>
+                                                        <input className="todoList_input" type="checkbox" value="true" onChange={() => toggleCheck(todo.id)} checked={todo.status} />
+                                                        <span style={{ textDecoration: todo.status ? "line-through" : "" }}>
+                                                            {editingId === todo.id ? (
+                                                                <input
+                                                                    type="text"
+                                                                    value={editedContent}
+                                                                    onChange={(e) => setEditedContent(e.target.value)}
+                                                                />
+                                                            ) : (
+                                                                todo.content
+                                                            )}
+                                                        </span>
                                                     </label>
+                                                    {/* <a href="#" className="d-flex align-items-center">
+                                                        <button type="button" className="border-0" onClick={
+                                                            (e) => {
+                                                                e.preventDefault();
+                                                                editTodo(todo.id)
+                                                            }}><i className="fa-regular fa-pen-to-square"></i>
+                                                        </button>
+                                                    </a> */}
                                                     <a href="#" className="d-flex align-items-center">
                                                         <button type="button" className="border-0" onClick={
                                                             (e) => {
