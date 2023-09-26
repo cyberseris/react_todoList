@@ -1,4 +1,4 @@
-import { Route, Routes, NavLink } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import Auth from './views/Auth';
 import SignUp from './views/SignUp';
 import Login from './views/Login';

@@ -2,7 +2,6 @@ import { Outlet } from 'react-router-dom'
 import authTitle from '../assets/authTitle.png';
 import authCover from '../assets/authCover.png';
 
-
 const Auth = () => {
     return (
         <div>
