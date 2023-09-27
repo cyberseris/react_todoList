@@ -7,6 +7,8 @@ import Swal from 'sweetalert2';
 const { VITE_APP_HOST } = import.meta.env;
 const todoData = []
 
+
+
 /* 
 const todoData = [{
     id: 1,
@@ -38,16 +40,15 @@ const cookieValue = document.cookie
     ?.split("=")[1];
 
 const TodoList = () => {
-    const [todos, setTodos] = useState(todoData);
+    const navigate = useNavigate();
+    const [todos, setTodos] = useState([]);
     const [newTodo, setNewTodo] = useState('');
     const [nickname, setNickname] = useState('');
     const [checkedItems, setCheckedItems] = useState([]);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [todoStatus, setTodoStatus] = useState('all');
-    const navigate = useNavigate();
     const [editingId, setEditingId] = useState(null);
     const [editedContent, setEditedContent] = useState('');
-    const [editingState, setEditingState] = useState(todos.map(todo => ({ id: todo.id, editing: false })));
 
     useEffect(() => {
         const decodedToken = jwt_decode(cookieValue);
@@ -73,15 +74,18 @@ const TodoList = () => {
 
 
     const handleEdit = (todo) => {
+        setEditingId(todo.id);
         setEditedContent(todo.content);
     };
 
     const editTodo = async (id) => {
+        console.log("testEdit")
         try {
-            const res = await axios.put(
+            console.log(editedContent)
+            await axios.put(
                 `${VITE_APP_HOST}/todos/${id}`,
                 {
-                    content: editContent,
+                    content: editedContent,
                 },
                 {
                     headers: {
@@ -90,7 +94,9 @@ const TodoList = () => {
                 }
             );
 
+            setEditingId(null);
             getTodos();
+
         } catch (error) {
             Swal.fire('編輯失敗', error.response.data.message);
         }
@@ -98,9 +104,7 @@ const TodoList = () => {
         setEditedContent('');
     };
 
-
     const toggleCheck = (id) => {
-
         axios.defaults.headers.common['Authorization'] = cookieValue;
 
         // 完成狀態修改
@@ -133,24 +137,24 @@ const TodoList = () => {
     const clearCheckedItems = () => {
         const updatedTodos = todos.filter((todo) => !checkedItems.includes(todo.id));
         setTodos(updatedTodos);
-
         setCheckedItems([]);
+    }
 
+    const getTodosNum = () => {
+        return todos.length - todos.filter((todo) => todo.status).map((todo) => todo.id).length
     }
 
     const HandleTodoStatus = (status) => {
-        setTodoStatus(status)
+        setTodoStatus(status);
+        setCheckedItems(todos.filter((todo) => todo.status).map((todo) => todo.id));
 
-        if (status === "all") {
-            setTodos(todoData);
-
+        if (status) {
             const updatedTodos = todos.map((todo) => ({
                 ...todo,
                 isCompleted: checkedItems.includes(todo.id),
             }));
             setTodos(updatedTodos);
         }
-
     }
 
     const getTodos = async () => {
@@ -163,8 +167,8 @@ const TodoList = () => {
                     Authorization: cookieValue,
                 },
             });
-            console.log(res.data.data);
             setTodos(res.data.data);
+            setCheckedItems(todos.filter((todo) => todo.status).map((todo) => todo.id));
 
         } catch (error) {
             Swal.fire('失敗', error.response.data.message);
@@ -176,7 +180,7 @@ const TodoList = () => {
             return;
         }
         try {
-            const res = await axios.post(
+            await axios.post(
                 `${VITE_APP_HOST}/todos`,
                 {
                     content: newTodo,
@@ -195,22 +199,9 @@ const TodoList = () => {
         }
     };
 
-    /* const addTodo = (text) => {
-        const newTodos = [
-            ...todos,
-            {
-                id: Math.floor(Math.random() * 10000),
-                text,
-                isCompleted: false,
-            },
-        ];
-        setTodos(newTodos);
-    } */
-
     const removeTodo = async (id) => {
-        console.log(id);
         try {
-            const res = await axios.delete(
+            await axios.delete(
                 `${VITE_APP_HOST}/todos/${id}`,
                 {
                     headers: {
@@ -219,7 +210,7 @@ const TodoList = () => {
                 }
             );
             getTodos();
-            /* setTabStatus('all'); */
+
         } catch (error) {
             Swal.fire('刪除失敗', error.response.data.message);
         }
@@ -227,19 +218,16 @@ const TodoList = () => {
         if (checkedItems.includes(id)) {
             setCheckedItems(checkedItems.filter((item) => item !== id));
         }
-
-        /* setTodos(filteredTodos); */
     }
 
     const signOut = async () => {
-
         try {
             const cookieValue = document.cookie
                 .split("; ")
                 .find((row) => row.startsWith("token="))
                 ?.split("=")[1];
 
-            const res = await axios.post(
+            await axios.post(
                 `${VITE_APP_HOST}/users/sign_out`, {}, {
                 headers: {
                     Authorization: cookieValue,
@@ -256,10 +244,6 @@ const TodoList = () => {
             console.log("登出失敗", error.message);
         }
     }
-
-    /* useEffect(() => {
-        console.log(todos);
-    }, [todos]); */
 
     return (
         <div>
@@ -308,26 +292,40 @@ const TodoList = () => {
                                                 <li key={todo.id} className="d-flex align-items-center">
                                                     <label className="todoList_label">
                                                         <input className="todoList_input" type="checkbox" value="true" onChange={() => toggleCheck(todo.id)} checked={todo.status} />
-                                                        <span style={{ textDecoration: todo.status ? "line-through" : "" }}>
-                                                            {editingId === todo.id ? (
+
+                                                        {editingId === todo.id ? (
+                                                            <span style={{ textDecoration: todo.status ? "line-through" : "" }}>
                                                                 <input
                                                                     type="text"
                                                                     value={editedContent}
                                                                     onChange={(e) => setEditedContent(e.target.value)}
                                                                 />
-                                                            ) : (
-                                                                todo.content
-                                                            )}
-                                                        </span>
+                                                            </span>
+                                                        ) : (
+                                                            <span style={{ textDecoration: todo.status ? "line-through" : "" }}>
+                                                                {todo.content}
+                                                            </span>
+                                                        )}
+
                                                     </label>
-                                                    {/* <a href="#" className="d-flex align-items-center">
-                                                        <button type="button" className="border-0" onClick={
-                                                            (e) => {
-                                                                e.preventDefault();
-                                                                editTodo(todo.id)
-                                                            }}><i className="fa-regular fa-pen-to-square"></i>
-                                                        </button>
-                                                    </a> */}
+
+                                                    {editingId === todo.id ? (<button
+                                                        type="button"
+                                                        className="btn btn-success me-2"
+                                                        onClick={() => editTodo(todo.id)}
+                                                    >
+                                                        儲存
+                                                    </button>) : (<button
+                                                        type="button"
+                                                        className="edit border-0"
+                                                        onClick={() => handleEdit(todo)}
+                                                    >
+                                                        編輯
+                                                    </button>)}
+                                                    {/* <button type="button" className="btn btn-light border me-2" onClick={() => editTodo(todo.id)} >
+                                                        {editingState.find((state) => state.id === todo.id).editing ? '儲存' : '編輯'}
+                                                    </button> */}
+
                                                     <a href="#" className="d-flex align-items-center">
                                                         <button type="button" className="border-0" onClick={
                                                             (e) => {
@@ -340,7 +338,7 @@ const TodoList = () => {
                                         }
                                     </ul>
                                     <div className="todoList_statistics">
-                                        <p> {todos.length - checkedItems.length}個待完成項目</p>
+                                        <p> {getTodosNum()}個待完成項目</p>
                                         <a href="#" onClick={
                                             (e) => {
                                                 e.preventDefault();
